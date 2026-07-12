@@ -1,0 +1,43 @@
+package webapp
+
+templ (app *WebApp) layout() {
+	<!DOCTYPE html>
+	<html data-theme="lemonade">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>InSecure GATE</title>
+			<meta name="description" content="InSecure GATEway"/>
+			if app.dev {
+				<link rel="apple-touch-icon" sizes="180x180" href={ app.devServer + "/public/apple-touch-icon.png" }/>
+				<link rel="icon" type="image/png" sizes="32x32" href={ app.devServer + "/public/favicon-32x32.png" }/>
+				<link rel="icon" type="image/png" sizes="16x16" href={ app.devServer + "/public/favicon-16x16.png" }/>
+				<link rel="manifest" href={ app.devServer + "/public/site.webmanifest" }/>
+				<link nonce={ templ.GetNonce(ctx) } href={ app.devServer + "/src/style.css" } rel="stylesheet" type="text/css"/>
+				<script nonce={ templ.GetNonce(ctx) } src={ app.devServer + "/src/index.tsx" } type="module"></script>
+			} else {
+				<link rel="apple-touch-icon" sizes="180x180" href="/public/apple-touch-icon.png"/>
+				<link rel="icon" type="image/png" sizes="32x32" href="/public/favicon-32x32.png"/>
+				<link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png"/>
+				<link rel="manifest" href="/public/site.webmanifest"/>
+				for _, entry := range app.manifest {
+					for _, cssFile := range entry.CSS {
+						<link nonce={ templ.GetNonce(ctx) } href={ cssFile } rel="stylesheet" type="text/css"/>
+					}
+					if entry.IsEntry {
+						<script nonce={ templ.GetNonce(ctx) } src={ entry.File } type="module"></script>
+					}
+				}
+			}
+		</head>
+		<body>
+			{ children... }
+		</body>
+	</html>
+}
+
+templ (app *WebApp) dashboard() {
+	@app.layout() {
+		<div id="app"></div>
+	}
+}

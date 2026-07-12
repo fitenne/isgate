@@ -1,0 +1,33 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Build the application
+    cmds:
+      - task: templ-generate
+      - task: build-frontend
+      - go build
+
+  image:
+    cmds:
+      - task: default
+      - podman build -t isgate:dev -f Dockerfile .
+
+  templ-generate:
+    cmds:
+      - templ generate webapp
+    sources:
+      - "webapp/**/*.templ"
+    generates:
+      - "webapp/**/*_templ.go"
+
+  build-frontend:
+    dir: webapp
+    cmds:
+      - nub install
+      - nub run build
+    sources:
+      - "src/**/*"
+      - "public/**/*"
+    generates:
+      - "dist/**/*"

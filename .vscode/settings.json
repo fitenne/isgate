@@ -1,0 +1,24 @@
+{
+	"editor.formatOnSave": true,
+	"tailwindCSS.includeLanguages": {
+		"templ": "html"
+	},
+	"emmet.includeLanguages": {
+		"templ": "html"
+	},
+	"gopls": {
+		"build.buildFlags": [
+			"-tags=dev"
+		]
+	},
+	"css.lint.unknownAtRules": "ignore",
+	"[templ]": {
+		"editor.defaultFormatter": "a-h.templ"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	}
+}

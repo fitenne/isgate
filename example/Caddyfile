@@ -1,0 +1,26 @@
+(isgate-auth) {
+	@not-assets `!path('*.css', '*.js', '*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp', '*.svg', '*.ico', '*.woff', '*.woff2', '*.ttf', '*.map')`
+	forward_auth @not-assets {args[0]} {
+		uri /auth
+		header_up X-Forwarded-Proto {http.request.scheme}
+		header_up X-Forwarded-Host  {http.request.hostport}
+		header_up X-Forwarded-Uri   {http.request.scheme}://{http.request.hostport}{http.request.uri}
+		header_up X-Proxy-Token     {args[1]}
+		copy_headers X-User-Issuer X-User-ID X-User-Name X-User-Email
+	}
+}
+
+
+private.example.com {
+	import isgate-auth isgate.example.com 1234567890
+	templates
+	respond <<TEMPLATE
+X-User-Issuer: {{.Req.Header.Get "x-user-issuer"}}
+X-User-ID: {{.Req.Header.Get "x-user-id"}}
+X-User-Name: {{.Req.Header.Get "x-user-name"}}
+X-User-Email: {{.Req.Header.Get "x-user-email"}}
+
+headers: {{ mustToPrettyJson .Req.Header }}
+TEMPLATE 200
+
+}

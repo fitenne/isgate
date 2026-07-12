@@ -1,0 +1,26 @@
+services:
+  reverse-proxy:
+    image: caddy:alpine
+    volumes:
+      - ./caddy-conf:/etc/caddy
+      - ./caddy-data:/data
+    ports:
+      - 1443:80
+    extra_hosts:
+      - "host.containers.internal:host-gateway"
+  pocket-id:
+    image: pocketid/pocket-id:v2
+    env_file: .env
+    volumes:
+      - "./pocketid-data:/app/data"
+    healthcheck:
+      test: [ "CMD", "/app/pocket-id", "healthcheck" ]
+      interval: 1m30s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
+
+  otel-collector:
+    image: otel/opentelemetry-collector
+    ports:
+      - 4317:4317 # OTLP gRPC receiver

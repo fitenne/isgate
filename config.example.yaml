@@ -1,0 +1,25 @@
+---
+dev: true
+dev_server: http://localhost:5173
+listen: :8080
+log_level: info
+base_url: "http://isgate.isgate-test.localhost:1443"
+secret_key: "uvysmN363H66pU79BiYHZyCjigg2XKDUFQvIhA+kL5U="
+
+proxy_token: "1234567890"
+allowed_origins:
+  - "http://user.isgate-test.localhost:1443"
+  - "https://example.one"
+
+session:
+  data_dir: "."
+  cookie_domain: isgate-test.localhost
+
+oidc:
+  issuer: "http://id.isgate-test.localhost:1443"
+  client_id: "5344abdd-86b8-4141-8c1e-98ce11fa4c97"
+  client_secret: "e7OfPnGnun7vqvl4xtT5ggyM045rhbOi"
+
+  cookie_secure_key:
+    - "YFtEZubZWJ/hPAWMzyAFMBk2iQ+d2mhO7sGTmDLjPhA="
+    - "P0Q07iL6ZUlGL1Z65u+iBTbWnXrLe02Lz3/ADtobVzM="
