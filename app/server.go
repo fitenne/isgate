@@ -219,7 +219,7 @@ func (app *App) NewHandleLogout() func(c *echo.Context) error {
 		q.Set("post_logout_redirect_uri", app.appBaseUrl)
 		u.RawQuery = q.Encode()
 
-		return c.Redirect(http.StatusFound, u.String())
+		return c.Redirect(http.StatusSeeOther, u.String())
 	}
 }
 
@@ -354,7 +354,7 @@ func (app *App) NewHandleOAuth2Callback() func(c *echo.Context) error {
 			}
 
 			trace.SpanFromContext(c.Request().Context()).AddEvent("new token")
-			http.Redirect(w, r, app.appBaseUrl, http.StatusFound)
+			http.Redirect(w, r, app.appBaseUrl, http.StatusSeeOther)
 		}
 
 		h := rp.CodeExchangeHandler(rp.UserinfoCallback(cb), app.oidc)
@@ -512,27 +512,13 @@ func (app *App) newRequstLoggerMiddleware() echo.MiddlewareFunc {
 		LogStatus:    true,
 		LogHeaders:   []string{"X-Forwarded-Uri", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-For"},
 		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
-			if v.Error == nil {
-				logger.LogAttrs(context.Background(), slog.LevelInfo, "request",
-					slog.String("method", v.Method),
-					slog.String("uri", v.URI),
-					slog.Int("status", v.Status),
-					slog.String("user_agent", v.UserAgent),
-					slog.String("request_id", v.RequestID),
-					slog.Any("forwarded", v.Headers),
-				)
-				return nil
-			}
-
-			logger.LogAttrs(context.Background(), slog.LevelError, "request",
+			logger.LogAttrs(context.Background(), slog.LevelInfo, "request",
 				slog.String("method", v.Method),
 				slog.String("uri", v.URI),
 				slog.Int("status", v.Status),
 				slog.String("user_agent", v.UserAgent),
 				slog.String("request_id", v.RequestID),
 				slog.Any("forwarded", v.Headers),
-
-				slog.String("error", v.Error.Error()),
 			)
 			return nil
 		},
