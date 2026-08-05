@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	sessionKeyTokens = "tokens"
+	sessionKeySessionToken = "sessionToken"
 )
 
 const (
@@ -121,17 +121,15 @@ func NewApp(c *Config) (*App, error) {
 	web := webapp.NewWebApp(c.Dev, c.DevServer, c.BaseURL)
 
 	e := echo.NewWithConfig(echo.Config{
-		Logger:   GetLogger("echo"),
-		Renderer: web,
-		Validator: &gvalidator{
-			validator: validator.New(),
-		},
+		Logger:    GetLogger("echo"),
+		Renderer:  web,
+		Validator: &gvalidator{validator: validator.New()},
 	})
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(
 		middleware.RequestID(),
 		echootel.NewMiddleware(""),
-		secureMiddleware(c.Dev),
+		basicSecureMiddleware(),
 		app.newSessionMiddleware(),
 		middleware.Recover(),
 	)
@@ -163,7 +161,7 @@ func NewApp(c *Config) (*App, error) {
 	}
 
 	{
-		webApp := e.Group("", app.loginGuardMiddleware, middleware.CSRF())
+		webApp := e.Group("", app.loginGuardMiddleware, middleware.CSRF(), cspMiddleware(c.Dev))
 		webApp.GET("/dashboard", app.renderWeb)
 	}
 
@@ -222,7 +220,9 @@ func (app *App) NewHandleLogout() func(c *echo.Context) error {
 		q.Set("post_logout_redirect_uri", app.appBaseUrl)
 		u.RawQuery = q.Encode()
 
-		return c.Redirect(http.StatusSeeOther, u.String())
+		return c.JSON(http.StatusOK, map[string]any{
+			"redirectUrl": u.String(),
+		})
 	}
 }
 
@@ -281,29 +281,27 @@ func (app *App) NewHandleAuth() echo.HandlerFunc {
 func (app *App) verifyAndRefreshTokens(c *echo.Context, verifier *rp.IDTokenVerifier) (*oidc.IDTokenClaims, error) {
 	tokens := app.GetTokens(c)
 	if tokens == nil {
-		return nil, errors.New("no tokens in session")
+		return nil, nil
 	}
 
 	claims, err := rp.VerifyIDToken[*oidc.IDTokenClaims](c.Request().Context(), tokens.IDToken, verifier)
 	if err != nil && !errors.Is(err, oidc.ErrExpired) {
-		app.logger.Warn("invalid id_token", slog.Any("error", err))
-		return nil, err
+		return nil, fmt.Errorf("invalid id_token: %w", err)
 	}
 
 	if errors.Is(err, oidc.ErrExpired) {
 		span := trace.SpanFromContext(c.Request().Context())
 		span.AddEvent("request refresh")
+		app.logger.Warn("id_token expired", slog.String("claims", string(mustJson(claims))))
 
 		newClaims, err := rp.RefreshTokens[*oidc.IDTokenClaims](c.Request().Context(), app.oidc, tokens.RefreshToken, "", "")
 		if err != nil {
-			app.logger.Error("refresh tokens error", slog.Any("error", err))
-			return nil, err
+			return nil, fmt.Errorf("refresh tokens error: %w", err)
 		}
 		claims = newClaims.IDTokenClaims
 
 		if err := app.session.Destroy(c.Request().Context()); err != nil {
-			app.logger.Error("error destroy session", slog.Any("error", err))
-			return nil, err
+			return nil, fmt.Errorf("error destroy session: %w", err)
 		}
 		app.SetTokens(c, &Tokens{
 			AccessToken:  newClaims.AccessToken,
@@ -311,6 +309,7 @@ func (app *App) verifyAndRefreshTokens(c *echo.Context, verifier *rp.IDTokenVeri
 			IDToken:      newClaims.IDToken,
 		})
 		span.AddEvent("refresh ok")
+		app.logger.Info("id_token refreshed", slog.String("claims", string(mustJson(newClaims.IDTokenClaims))))
 	}
 
 	return claims, nil
@@ -429,7 +428,7 @@ func (app *App) VerifySignature(c *echo.Context) (bool, error) {
 }
 
 func (app *App) GetTokens(c *echo.Context) *Tokens {
-	v := app.session.Get(c.Request().Context(), sessionKeyTokens)
+	v := app.session.Get(c.Request().Context(), sessionKeySessionToken)
 	if v == nil {
 		return nil
 	}
@@ -437,7 +436,7 @@ func (app *App) GetTokens(c *echo.Context) *Tokens {
 }
 
 func (app *App) SetTokens(c *echo.Context, tokens *Tokens) {
-	app.session.Put(c.Request().Context(), sessionKeyTokens, tokens)
+	app.session.Put(c.Request().Context(), sessionKeySessionToken, tokens)
 }
 
 func (app *App) originUrlOf(c *echo.Context) string {
@@ -582,6 +581,9 @@ func (app *App) loginGuardMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		claims, err := app.verifyAndRefreshTokens(c, verifier)
 		if err != nil {
+			app.logger.Error("verify and refresh tokens error", slog.Any("error", err))
+		}
+		if claims == nil || err != nil {
 			return app.redirectToLogin(c)
 		}
 
@@ -614,18 +616,28 @@ func (app *App) renderWeb(c *echo.Context) error {
 	return c.Render(http.StatusOK, c.Request().URL.Path, app)
 }
 
-func secureMiddleware(dev bool) echo.MiddlewareFunc {
+func basicSecureMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			res := c.Response()
-
 			res.Header().Set(echo.HeaderReferrerPolicy, "strict-origin-when-cross-origin")
 			res.Header().Set(echo.HeaderXContentTypeOptions, "nosniff")
+			return next(c)
+		}
+	}
+}
+
+func cspMiddleware(dev bool) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			res := c.Response()
 
 			nonce := rand.Text()
 			c.SetRequest(c.Request().WithContext(templ.WithNonce(c.Request().Context(), nonce)))
 			if !dev {
 				res.Header().Set(echo.HeaderContentSecurityPolicy, fmt.Sprintf("default-src 'self'; style-src 'self' 'unsafe-inline' 'nonce-%s'; script-src 'nonce-%s' 'strict-dynamic'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", nonce, nonce))
+			} else {
+				res.Header().Set(echo.HeaderContentSecurityPolicyReportOnly, fmt.Sprintf("default-src 'self'; style-src 'self' 'unsafe-inline' 'nonce-%s'; script-src 'nonce-%s' 'strict-dynamic'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'", nonce, nonce))
 			}
 
 			return next(c)

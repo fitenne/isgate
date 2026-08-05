@@ -47,6 +47,14 @@ function useQRCode(data: string, visible: boolean) {
 }
 
 function App() {
+	const onSignout = async () => {
+		const resp = await fetch("/signout", {
+			method: "POST",
+		});
+		const j = await resp.json();
+		window.location.href = j.redirectUrl;
+	};
+
 	return (
 		<>
 			<header>
@@ -57,11 +65,9 @@ function App() {
 						</a>
 					</div>
 					<div class="flex-none">
-						<form method="post" action="/signout">
-							<button class="btn" type="submit">
-								注销
-							</button>
-						</form>
+						<button class="btn" type="button" onClick={onSignout}>
+							注销
+						</button>
 					</div>
 				</div>
 			</header>
