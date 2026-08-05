@@ -124,6 +124,10 @@ func NewApp(c *Config) (*App, error) {
 		Logger:    GetLogger("echo"),
 		Renderer:  web,
 		Validator: &gvalidator{validator: validator.New()},
+		HTTPErrorHandler: func(c *echo.Context, err error) {
+			app.logger.Error("panic", "error", err)
+			echo.DefaultHTTPErrorHandler(false)(c, err)
+		},
 	})
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(
@@ -270,6 +274,9 @@ func (app *App) NewHandleAuth() echo.HandlerFunc {
 
 		claims, err := app.verifyAndRefreshTokens(c, verifier)
 		if err != nil {
+			app.logger.Error("verify and refresh tokens error", slog.Any("error", err))
+		}
+		if claims == nil || err != nil {
 			return result(c)
 		}
 
