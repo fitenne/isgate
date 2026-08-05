@@ -6,7 +6,7 @@ tasks:
     cmds:
       - task: templ-generate
       - task: build-frontend
-      - go build
+      - go build -o isgate .
 
   image:
     cmds:

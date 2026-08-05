@@ -2,14 +2,16 @@
 dev: true
 dev_server: http://localhost:5173
 listen: :8080
-log_level: info
 base_url: "http://isgate.isgate-test.localhost:1443"
 secret_key: "uvysmN363H66pU79BiYHZyCjigg2XKDUFQvIhA+kL5U="
-
 proxy_token: "1234567890"
 allowed_origins:
   - "http://user.isgate-test.localhost:1443"
   - "https://example.one"
+
+log_level: info
+log_request: true
+request_log_path: "access.log"
 
 session:
   data_dir: "."

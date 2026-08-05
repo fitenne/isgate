@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -47,4 +48,39 @@ func GetLogger(name string, opts ...zapslog.HandlerOption) *slog.Logger {
 		zapslog.WithName(name),
 	}
 	return slog.New(zapslog.NewHandler(core, append(defaultOpts, opts...)...))
+}
+
+func RequestLogger(path string) (*slog.Logger, error) {
+	var ws zapcore.WriteSyncer
+	switch path {
+	case "":
+		ws = os.Stdout
+	default:
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open file: %s: %w", path, err)
+		}
+		ws = zapcore.AddSync(f)
+	}
+
+	var encoderConfig = zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+	}
+
+	isTerminal := term.IsTerminal(int(os.Stdout.Fd()))
+	var encoder zapcore.Encoder
+	switch {
+	case isTerminal:
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+	case !isTerminal:
+		encoder = zapcore.NewJSONEncoder(encoderConfig)
+	}
+
+	core = zapcore.NewCore(encoder, ws, zapcore.InfoLevel)
+	return slog.New(zapslog.NewHandler(core)), nil
 }

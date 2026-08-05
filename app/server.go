@@ -130,12 +130,15 @@ func NewApp(c *Config) (*App, error) {
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(
 		middleware.RequestID(),
-		app.newRequstLoggerMiddleware(),
 		echootel.NewMiddleware(""),
 		secureMiddleware(c.Dev),
 		app.newSessionMiddleware(),
 		middleware.Recover(),
 	)
+
+	if c.LogRequest {
+		e.Use(app.newRequstLoggerMiddleware(c.RequestLogPath))
+	}
 
 	{
 		e.GET("/", func(c *echo.Context) error {
@@ -499,8 +502,11 @@ func (app *App) checkDomain(c *echo.Context) error {
 	return nil
 }
 
-func (app *App) newRequstLoggerMiddleware() echo.MiddlewareFunc {
-	logger := GetLogger("request")
+func (app *App) newRequstLoggerMiddleware(path string) echo.MiddlewareFunc {
+	logger, err := RequestLogger(path)
+	if err != nil {
+		panic(err)
+	}
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogLatency:   true,
 		LogRemoteIP:  true,
@@ -510,7 +516,7 @@ func (app *App) newRequstLoggerMiddleware() echo.MiddlewareFunc {
 		LogRequestID: true,
 		LogUserAgent: true,
 		LogStatus:    true,
-		LogHeaders:   []string{"X-Forwarded-Uri", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-For"},
+		LogHeaders:   []string{"X-Forwarded-Uri", "X-Forwarded-For"},
 		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 			logger.LogAttrs(context.Background(), slog.LevelInfo, "request",
 				slog.String("method", v.Method),

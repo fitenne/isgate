@@ -9,6 +9,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
 	"go.yaml.in/yaml/v4"
 
@@ -16,15 +17,18 @@ import (
 )
 
 type Config struct {
-	Dev       bool     `koanf:"dev"`
-	DevServer string   `koanf:"dev_server" validate:"omitempty,url"`
-	Listen    string   `koanf:"listen" validate:"required,hostname_port"`
-	LogLevel  LogLevel `koanf:"log_level"`
-	BaseURL   string   `koanf:"base_url" validate:"required,url"`
-	SecretKey B64Key   `koanf:"secret_key" validate:"required"`
+	Dev       bool   `koanf:"dev"`
+	DevServer string `koanf:"dev_server" validate:"omitempty,url"`
 
+	Listen         string   `koanf:"listen" validate:"required,hostname_port"`
+	BaseURL        string   `koanf:"base_url" validate:"required,url"`
+	SecretKey      B64Key   `koanf:"secret_key" validate:"required"`
 	ProxyToken     string   `koanf:"proxy_token" validate:"required"`
 	AllowedOrigins []string `koanf:"allowed_origins" validate:"required,dive,origin"`
+
+	LogLevel       LogLevel `koanf:"log_level"`
+	LogRequest     bool     `koanf:"log_request"`
+	RequestLogPath string   `koanf:"request_log_path" validate:"omitempty,filepath"`
 
 	// session
 	Session struct {
@@ -39,6 +43,11 @@ type Config struct {
 		ClientSecret    string    `koanf:"client_secret" validate:"required"`
 		CookieSecureKey [2]B64Key `koanf:"cookie_secure_key" validate:"required,dive"`
 	} `koanf:"oidc" validate:"required"`
+}
+
+var defaultConfigFields = Config{
+	LogLevel:   LogLevel(zapcore.InfoLevel),
+	LogRequest: true,
 }
 
 type B64Key []byte
@@ -107,6 +116,10 @@ func (p *parser) Unmarshal(b []byte) (map[string]any, error) {
 
 func LoadConfig(path string) (*Config, error) {
 	k := koanf.New(".")
+
+	if err := k.Load(structs.Provider(defaultConfigFields, "koanf"), nil); err != nil {
+		panic(err)
+	}
 
 	if err := k.Load(file.Provider(path), &parser{}); err != nil {
 		return nil, err
