@@ -60,7 +60,7 @@ func NewSessionManager(c *Config) (*scs.SessionManager, error) {
 
 	sessionManager := scs.New()
 	sessionManager.Lifetime = 30 * 24 * time.Hour
-	sessionManager.IdleTimeout = 48 * time.Hour
+	sessionManager.IdleTimeout = 7 * 24 * time.Hour
 	sessionManager.Store = sqlite3store.New(db)
 	sessionManager.Cookie = scs.SessionCookie{
 		Name:     "__Http-session",

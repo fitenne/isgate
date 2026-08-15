@@ -18,6 +18,7 @@ import (
 	"isgate/webapp"
 	"log/slog"
 	"maps"
+	"math"
 	"net/http"
 	"net/url"
 	"path"
@@ -34,6 +35,7 @@ import (
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 const (
@@ -102,7 +104,7 @@ func NewApp(c *Config) (*App, error) {
 	}
 
 	app := &App{
-		logger:     slog.Default(),
+		logger:     GetLogger("app"),
 		session:    sessionManager,
 		appBaseUrl: c.BaseURL,
 		oidc:       oidc,
@@ -120,13 +122,14 @@ func NewApp(c *Config) (*App, error) {
 
 	web := webapp.NewWebApp(c.Dev, c.DevServer, c.BaseURL)
 
+	httpErrorLogger := GetLogger("http", zapslog.WithCaller(false), zapslog.AddStacktraceAt(math.MaxInt))
 	e := echo.NewWithConfig(echo.Config{
 		Logger:    GetLogger("echo"),
 		Renderer:  web,
 		Validator: &gvalidator{validator: validator.New()},
-		HTTPErrorHandler: func(c *echo.Context, err error) {
-			app.logger.Error("panic", "error", err)
-			echo.DefaultHTTPErrorHandler(false)(c, err)
+		HTTPErrorHandler: func(ctx *echo.Context, err error) {
+			httpErrorLogger.Error("http error", slog.String("method", ctx.Request().Method), slog.Any("path", ctx.Request().URL), slog.Any("error", err))
+			echo.DefaultHTTPErrorHandler(c.Dev)(ctx, err)
 		},
 	})
 	e.Pre(middleware.RemoveTrailingSlash())

@@ -31,3 +31,7 @@ tasks:
       - "public/**/*"
     generates:
       - "dist/**/*"
+
+  upload:
+    cmds:
+      - podman save --format oci-archive isgate:dev | zstd -c | ssh -4 {{.CLI_ARGS}} 'zstd -d -c | nerdctl load && nerdctl tag localhost/isgate:dev isgate:dev && nerdctl rmi localhost/isgate:dev'
